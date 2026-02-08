@@ -289,6 +289,19 @@ pub fn clear_background(color: Color) void {
     rl.ClearBackground(color.to_rl());
 }
 
+// TODO: support simple text formatting
+// pub fn text_format(format: [*c]const u8, ...) callconv(.{ .x86_64_win = .{} }) [*c]const u8 {
+//     const args = @cVaStart();
+//     defer @cVaEnd(args);
+
+//     const result = rl.TextFormat(format, args);
+//     return std.mem.span(result);
+// }
+
+pub fn draw_text(text: [:0]const u8, x: i32, y: i32, font_size: u32, color: Color) void {
+    rl.DrawText(text, x, y, @intCast(font_size), color.to_rl());
+}
+
 pub fn draw_rectangle(x: f32, y: f32, width: f32, height: f32, color: Color) void {
     rl.DrawRectangleV(.{ .x = x, .y = y }, .{ .x = width, .y = height }, color.to_rl());
 }

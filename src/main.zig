@@ -76,7 +76,28 @@ pub fn main() void {
             rl.draw_grid(plane_size * grid_subdivisions, 1.0 / @as(comptime_float, grid_subdivisions));
             rl.draw_model(mouse_model, mouse_position, 1.0, .WHITE);
         }
+
+        const font_size = 16;
+        const text_pos = rm.Vector2i.init(5, 5);
+        const camera_dir = camera.position.sub_elements(camera.target).normalize();
+        rl.draw_text(text_format("Camera Pos: {f}", .{camera.position}), text_pos.x, text_pos.y + 0 * font_size, font_size, .WHITE);
+        rl.draw_text(text_format("Camera Tgt: {f}", .{camera.target}), text_pos.x, text_pos.y + 1 * font_size, font_size, .WHITE);
+        rl.draw_text(text_format("Camera Dir: {f}", .{camera_dir}), text_pos.x, text_pos.y + 2 * font_size, font_size, .WHITE);
     }
+}
+
+fn text_format(comptime format: []const u8, args: anytype) [:0]const u8 {
+    const Static = struct {
+        var heap = std.heap.DebugAllocator(.{}).init;
+        var arena = std.heap.ArenaAllocator.init(heap.allocator());
+        const allocator = arena.allocator();
+    };
+
+    _ = Static.arena.reset(.retain_capacity);
+    const result = std.fmt.allocPrintSentinel(Static.allocator, format, args, 0) catch {
+        return "<oom>";
+    };
+    return result;
 }
 
 // ripped and modified from https://github.com/raysan5/raylib/blob/master/src/rcamera.h

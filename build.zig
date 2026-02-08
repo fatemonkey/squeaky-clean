@@ -5,6 +5,8 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const install_path = std.Build.LazyPath{ .cwd_relative = b.install_path };
+
     const version_string = blk: {
         const build_type_string = if (optimize == .Debug) "+debug" else "";
         break :blk try std.fmt.allocPrint(b.allocator, "v{s}{s}", .{ zon.version, build_type_string });
@@ -58,6 +60,7 @@ pub fn build(b: *std.Build) !void {
     const run_step = b.step("run", "Run the game");
     const run_command = b.addRunArtifact(exe);
     run_command.step.dependOn(b.getInstallStep());
+    run_command.setCwd(install_path);
     run_step.dependOn(&run_command.step);
 
     if (b.args) |args| {
@@ -69,7 +72,6 @@ pub fn build(b: *std.Build) !void {
     //       otherwise, the package might include old files
 
     const package_step = b.step("package", "Package a release of the game");
-    const install_path = std.Build.LazyPath{ .cwd_relative = b.install_path };
     const package_name = try std.fmt.allocPrint(b.allocator, "squeaky_clean-{s}", .{version_string});
     const package_file_name = try std.fmt.allocPrint(b.allocator, "releases/{s}.zip", .{package_name});
 

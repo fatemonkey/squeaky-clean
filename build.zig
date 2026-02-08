@@ -23,11 +23,13 @@ pub fn build(b: *std.Build) !void {
 
     const raylib_lib = raylib.artifact("raylib");
 
-    const raylib_h = b.addTranslateC(.{
-        .root_source_file = raylib.path("src/raylib.h"),
+    const raylib_translate_c = b.addTranslateC(.{
+        .root_source_file = b.path("src/rayzig/include.h"),
         .target = target,
         .optimize = optimize,
-    }).createModule();
+    });
+    raylib_translate_c.addIncludePath(raylib.path("src"));
+    const raylib_h = raylib_translate_c.createModule();
 
     const rayzig = b.createModule(.{
         .target = target,

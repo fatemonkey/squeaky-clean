@@ -2,6 +2,8 @@ const std = @import("std");
 const rl = @import("raylib");
 pub const math = @import("math.zig");
 
+// TODO: should we make all rayzig structures binary compatibile with raylib so we can easily just cast between them...?
+
 pub const Color = struct {
     r: u8,
     g: u8,
@@ -63,7 +65,7 @@ pub const Color = struct {
         return init_u8(r, g, b, a);
     }
 
-    fn to_rl_color(this: This) rl.Color {
+    fn to_rl(this: This) rl.Color {
         return .{ .r = this.r, .g = this.g, .b = this.b, .a = this.a };
     }
 };
@@ -180,8 +182,64 @@ pub const Key = enum(rl.KeyboardKey) {
     VOLUME_UP = rl.KEY_VOLUME_UP,
     VOLUME_DOWN = rl.KEY_VOLUME_DOWN,
 
-    fn to_rl_key(this: @This()) rl.KeyboardKey {
+    fn to_rl(this: @This()) rl.KeyboardKey {
         return @intFromEnum(this);
+    }
+};
+
+// TODO: nochicken extern
+pub const Model = extern struct {
+    // transform: Matrix,
+    // mesh_count: c_int,
+    // material_count: c_int,
+    // meshes: [*c]Mesh,
+    // materials: [*c]Material,
+    // mesh_material: [*c]c_int,
+    // bone_count: c_int,
+    // bones: [*c]BoneInfo,
+    // bind_pose: [*c]Transform,
+
+    // TODO: nochicken
+    bytes: [@sizeOf(rl.Model)]u8,
+};
+
+pub const Camera_Projection = enum(rl.CameraProjection) {
+    PERSPECTIVE = rl.CAMERA_PERSPECTIVE,
+    ORTHOGRAPHIC = rl.CAMERA_ORTHOGRAPHIC,
+
+    fn to_rl(this: @This()) rl.CameraProjection {
+        return @intFromEnum(this);
+    }
+};
+
+pub const Camera_Mode = enum(rl.CameraMode) {
+    CAMERA_CUSTOM = rl.CAMERA_CUSTOM, // Camera custom, controlled by user (UpdateCamera() does nothing)
+    CAMERA_FREE = rl.CAMERA_FREE,
+    CAMERA_ORBITAL = rl.CAMERA_ORBITAL, // Camera orbital, around target, zoom supported
+    CAMERA_FIRST_PERSON = rl.CAMERA_FIRST_PERSON,
+    CAMERA_THIRD_PERSON = rl.CAMERA_THIRD_PERSON,
+
+    fn to_rl(this: @This()) rl.CameraMode {
+        return @intFromEnum(this);
+    }
+};
+
+pub const Camera_3d = struct {
+    position: math.Vector3f,
+    target: math.Vector3f,
+    up: math.Vector3f,
+    fovy: f32,
+    projection: Camera_Projection,
+
+    fn to_rl(this: Camera_3d) rl.Camera3D {
+        return .{
+            // TODO: helper for converting between vertical and horizontal fov
+            .fovy = this.fovy,
+            .projection = @bitCast(this.projection.to_rl()),
+            .position = this.position.to_rl(),
+            .target = this.target.to_rl(),
+            .up = this.up.to_rl(),
+        };
     }
 };
 
@@ -210,33 +268,57 @@ pub fn end_drawing() void {
 }
 
 pub fn clear_background(color: Color) void {
-    rl.ClearBackground(color.to_rl_color());
+    rl.ClearBackground(color.to_rl());
 }
 
 pub fn draw_rectangle(x: f32, y: f32, width: f32, height: f32, color: Color) void {
-    rl.DrawRectangleV(.{ .x = x, .y = y }, .{ .x = width, .y = height }, color.to_rl_color());
+    rl.DrawRectangleV(.{ .x = x, .y = y }, .{ .x = width, .y = height }, color.to_rl());
 }
 
 pub fn draw_rectangle_v(position: math.Vector2f, size: math.Vector2f, color: Color) void {
-    rl.DrawRectangleV(position.to_rl_vector2(), size.to_rl_vector2(), color.to_rl_color());
+    rl.DrawRectangleV(position.to_rl(), size.to_rl(), color.to_rl());
 }
 
 pub fn is_key_pressed(key: Key) bool {
-    return rl.IsKeyPressed(@intCast(key.to_rl_key()));
+    return rl.IsKeyPressed(@intCast(key.to_rl()));
 }
 
 pub fn is_key_down(key: Key) bool {
-    return rl.IsKeyDown(@intCast(key.to_rl_key()));
+    return rl.IsKeyDown(@intCast(key.to_rl()));
 }
 
 pub fn is_key_pressed_repeating(key: Key) bool {
-    return rl.IsKeyPressedRepeat(@intCast(key.to_rl_key()));
+    return rl.IsKeyPressedRepeat(@intCast(key.to_rl()));
 }
 
 pub fn is_key_released(key: Key) bool {
-    return rl.IsKeyReleased(@intCast(key.to_rl_key()));
+    return rl.IsKeyReleased(@intCast(key.to_rl()));
 }
 
 pub fn is_key_up(key: Key) bool {
-    return rl.IsKeyUp(@intCast(key.to_rl_key()));
+    return rl.IsKeyUp(@intCast(key.to_rl()));
+}
+
+pub fn begin_mode_3d(camera: Camera_3d) void {
+    rl.BeginMode3D(camera.to_rl());
+}
+
+pub fn end_mode_3d() void {
+    rl.EndMode3D();
+}
+
+pub fn load_model(path: [:0]const u8) Model {
+    const model = rl.LoadModel(path);
+    // TODO: nochicken bitcast
+    return @bitCast(model);
+}
+
+pub fn unload_model(model: Model) void {
+    // TODO: nochicken bitcast
+    rl.UnloadModel(@bitCast(model));
+}
+
+pub fn draw_model(model: Model, position: math.Vector3f, scale: f32, tint: Color) void {
+    // TODO: nochicken bitcast
+    rl.DrawModel(@bitCast(model), position.to_rl(), scale, tint.to_rl());
 }

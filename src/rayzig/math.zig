@@ -96,7 +96,7 @@ fn Vector2(Element_Type: type) type {
             // TODO: swizzling
         }
 
-        pub fn to_rl_vector2(this: This) rl.Vector2 {
+        pub fn to_rl(this: This) rl.Vector2 {
             return .{ .x = this.x, .y = this.y };
         }
 
@@ -121,6 +121,105 @@ fn Vector3(Element_Type: type) type {
         x: Element_Type,
         y: Element_Type,
         z: Element_Type,
+
+        const This = @This();
+        const Type = Element_Type;
+        const DIMENSIONS = 3;
+
+        pub fn init(x: Element_Type, y: Element_Type, z: Element_Type) This {
+            return .{ .x = x, .y = y, .z = z };
+        }
+
+        pub fn zero() This {
+            return init(0, 0, 0);
+        }
+
+        pub fn one() This {
+            return init(1, 1, 1);
+        }
+
+        pub fn add_elements(this: This, rhs: This) This {
+            return init(this.x + rhs.x, this.y + rhs.y, this.z + rhs.z);
+        }
+
+        pub fn sub_elements(this: This, rhs: This) This {
+            return init(this.x - rhs.x, this.y - rhs.y, this.z - rhs.z);
+        }
+
+        pub fn mul_elements(this: This, rhs: This) This {
+            return init(this.x * rhs.x, this.y * rhs.y, this.z * rhs.z);
+        }
+
+        pub fn div_elements(this: This, rhs: This) This {
+            return init(this.x / rhs.x, this.y / rhs.y, this.z / rhs.z);
+        }
+
+        pub fn add_value(this: This, value: Element_Type) This {
+            return init(this.x + value, this.y + value, this.z + value);
+        }
+
+        pub fn sub_value(this: This, value: Element_Type) This {
+            return this.add_value(-value);
+        }
+
+        pub fn scale(this: This, factor: Element_Type) This {
+            return init(this.x * factor, this.y * factor, this.z * factor);
+        }
+
+        pub fn negate(this: This) This {
+            return this.scale(-1);
+        }
+
+        pub fn normalize(this: This) This {
+            return this.scale(1 / this.length());
+        }
+
+        pub fn dot_product(this: This, rhs: This) Element_Type {
+            return this.x * rhs.x + this.y * rhs.y + this.z * rhs.z;
+        }
+
+        pub fn cross_product(this: This, rhs: This) This {
+            _ = this;
+            _ = rhs;
+            @compileError("todo");
+        }
+
+        pub fn length(this: This) Element_Type {
+            return @sqrt(this.length2());
+        }
+
+        pub fn length2(this: This) Element_Type {
+            return this.x * this.x + this.y * this.y + this.z * this.z;
+        }
+
+        pub fn distance(this: This, rhs: This) Element_Type {
+            return @sqrt(this.distance2(rhs));
+        }
+
+        pub fn distance2(this: This, rhs: This) Element_Type {
+            const dx = this.x - rhs.x;
+            const dy = this.y - rhs.y;
+            const dz = this.z - rhs.z;
+            return dx * dx + dy * dy + dz * dz;
+        }
+
+        pub fn to_rl(this: This) rl.Vector3 {
+            return .{ .x = this.x, .y = this.y, .z = this.z };
+        }
+
+        pub fn as(this: This, T: type) T {
+            if (T.DIMENSIONS != this.DIMENSIONS) {
+                // TODO: should this be supported?
+                @compileError("can't cast vector to a different size");
+            }
+            if (@typeInfo(T.Type) == .Float and @typeInfo(this.Type) == .Int) {
+                return T.init(@floatFromInt(this.x), @floatFromInt(this.y), @floatFromInt(this.z), @floatFromInt(this.w));
+            } else if (@typeInfo(T.Type) == .Int and @typeInfo(this.Type) == .Float) {
+                return T.init(@intFromFloat(this.x), @intFromFloat(this.y), @intFromFloat(this.z), @intFromFloat(this.w));
+            }
+
+            @compileError("unrecognized type to cast to");
+        }
     };
 }
 
@@ -213,7 +312,7 @@ fn Vector4(Element_Type: type) type {
             return dx * dx + dy * dy + dz * dz + dw * dw;
         }
 
-        pub fn to_rl_vector4(this: This) rl.Vector4 {
+        pub fn to_rl(this: This) rl.Vector4 {
             return .{ .x = this.x, .y = this.y, .z = this.z, .w = this.w };
         }
 

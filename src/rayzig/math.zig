@@ -118,6 +118,11 @@ fn Vector2(Element_Type: type) type {
 
             @compileError("unrecognized type to cast to");
         }
+
+        pub fn format(this: This, writer: *std.Io.Writer) !void {
+            const precision = 3;
+            try writer.print("Vector2{{x={d:0.[2]}, y={d:0.[2]}}}", .{ this.x, this.y, precision });
+        }
     };
 }
 
@@ -228,6 +233,11 @@ fn Vector3(Element_Type: type) type {
             }
 
             @compileError("unrecognized type to cast to");
+        }
+
+        pub fn format(this: This, writer: *std.Io.Writer) !void {
+            const precision = 3;
+            try writer.print("Vector3{{x={d:0.[3]}, y={d:0.[3]}, z={d:0.[3]}}}", .{ this.x, this.y, this.z, precision });
         }
     };
 }
@@ -341,6 +351,11 @@ fn Vector4(Element_Type: type) type {
             }
 
             @compileError("unrecognized type to cast to");
+        }
+
+        pub fn format(this: This, writer: *std.Io.Writer) !void {
+            const precision = 3;
+            try writer.print("Vector4{{x={d:0.[4]}, y={d:0.[4]}, z={d:0.[4]}, w={d:0.[4]}}", .{ this.x, this.y, this.z, this.w, precision });
         }
     };
 }

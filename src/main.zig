@@ -5,10 +5,10 @@ const options = @import("options");
 const log = std.log.scoped(.game);
 
 pub fn main() void {
-    const version = options.version;
+    const version = options.version_string;
 
     var title_buffer: [64]u8 = undefined;
-    const title = std.fmt.bufPrintZ(&title_buffer, "Squeaky Clean v{f}", .{version}) catch blk: {
+    const title = std.fmt.bufPrintZ(&title_buffer, "Squeaky Clean {s}", .{version}) catch blk: {
         log.warn("Failed to format title", .{});
         break :blk "<title>";
     };

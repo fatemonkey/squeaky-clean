@@ -17,32 +17,90 @@ pub fn main() void {
     rl.init_window(800, 600, title);
     defer rl.close_window();
 
-    rl.set_target_fps(60);
+    // TODO: detect if actual frame rate is falling below target, and adjust
+    const target_fps = 60;
+    const dt = 1.0 / @as(comptime_float, target_fps);
+    rl.set_target_fps(target_fps);
+    // TODO: now the only way to close the game is with the escape key since that, by default, tells raylib to close the window
+    //       instead, we'll want a menu and to re-enable the mouse when in that menu, with a quit option
+    rl.disable_cursor();
 
-    // TODO: for some reason model loading is *EXTREMELY* slow
-    const model = rl.load_model("assets/fate_mouse_static.obj");
-    defer rl.unload_model(model);
+    const mouse_model = rl.load_model("assets/mouse7.glb");
+    const mouse_bounds = rl.get_model_bounding_box(mouse_model);
+    var mouse_position = rm.Vector3f.init(0, -mouse_bounds.min.y, 0);
+    defer rl.unload_model(mouse_model);
 
-    const camera = rl.Camera_3d{
+    var camera = rl.Camera_3d{
         .fovy = 60,
         // TODO: predefined vectors for up, down, left, right, forwards, backwards
-        // TODO: pretty sure up should be y=-1, just using 1 for now to fix the model being upside down
         .up = rm.Vector3f.init(0, 1, 0),
         .projection = .PERSPECTIVE,
-        .position = rm.Vector3f.init(0, 0, -1),
-        .target = rm.Vector3f.init(0, 0, 0),
+        .position = rm.Vector3f.init(0, 0.5, 0.5),
+        .target = mouse_position,
     };
     while (!rl.window_should_close()) {
+        const mouse_speed = 0.3; // meters per second
+        var movement = rm.Vector3f.zero();
+        if (rl.is_key_down(.W)) {
+            movement.z -= 1;
+        }
+        if (rl.is_key_down(.S)) {
+            movement.z += 1;
+        }
+        if (rl.is_key_down(.A)) {
+            movement.x -= 1;
+        }
+        if (rl.is_key_down(.D)) {
+            movement.x += 1;
+        }
+        if (!movement.is_zero()) {
+            mouse_position = mouse_position.add_elements(movement.normalize().scale(dt * mouse_speed));
+        }
+
+        camera.target = mouse_position;
+        update_camera(&camera);
+
         rl.begin_drawing();
         defer rl.end_drawing();
 
-        rl.clear_background(.BLACK);
+        rl.clear_background(.DARKGRAY);
 
         {
             rl.begin_mode_3d(camera);
             defer rl.end_mode_3d();
 
-            rl.draw_model(model, rm.Vector3f.zero(), 0.5, .WHITE);
+            const plane_size = 2;
+            // offset the plane ever so slightly below ground level so the grid is cleanly above it
+            rl.draw_plane(rm.Vector3f.init(0, -0.01, 0), rm.Vector2f.init(plane_size, plane_size), .DARKBROWN);
+            const grid_subdivisions = 2;
+            rl.draw_grid(plane_size * grid_subdivisions, 1.0 / @as(comptime_float, grid_subdivisions));
+            rl.draw_model(mouse_model, mouse_position, 1.0, .WHITE);
         }
     }
+}
+
+// ripped and modified from https://github.com/raysan5/raylib/blob/master/src/rcamera.h
+fn update_camera(camera: *rl.Camera_3d) void {
+    const CAMERA_MOUSE_MOVE_SENSITIVITY = 0.003;
+
+    const mouse_delta = rl.get_mouse_delta();
+
+    const rotate_around_target = true;
+    const lock_view = true;
+    const rotate_up = false;
+
+    rl.camera_yaw(camera, -mouse_delta.x * CAMERA_MOUSE_MOVE_SENSITIVITY, rotate_around_target);
+    rl.camera_pitch(camera, -mouse_delta.y * CAMERA_MOUSE_MOVE_SENSITIVITY, lock_view, rotate_around_target, rotate_up);
+
+    // TODO: gamepad support
+    // if (IsGamepadAvailable(0))
+    // {
+    //     CameraYaw(camera, -(GetGamepadAxisMovement(0, GAMEPAD_AXIS_RIGHT_X)*2)*CAMERA_MOUSE_MOVE_SENSITIVITY, rotateAroundTarget);
+    //     CameraPitch(camera, -(GetGamepadAxisMovement(0, GAMEPAD_AXIS_RIGHT_Y)*2)*CAMERA_MOUSE_MOVE_SENSITIVITY, lockView, rotateAroundTarget, rotateUp);
+    // }
+
+    // Zoom to target with mouse wheel
+    // TODO: disallow moving inside the mesh, use mesh bounding box?
+    // TODO: this doesn't seem like linear movement
+    rl.camera_move_to_target(camera, -0.15 * rl.get_mouse_wheel_move());
 }

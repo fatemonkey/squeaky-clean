@@ -201,6 +201,10 @@ pub const Model = extern struct {
 
     // TODO: nochicken
     bytes: [@sizeOf(rl.Model)]u8,
+
+    pub fn to_rl(this: Model) rl.Model {
+        return @bitCast(this);
+    }
 };
 
 pub const Camera_Projection = enum(rl.CameraProjection) {
@@ -213,35 +217,45 @@ pub const Camera_Projection = enum(rl.CameraProjection) {
 };
 
 pub const Camera_Mode = enum(rl.CameraMode) {
-    CAMERA_CUSTOM = rl.CAMERA_CUSTOM, // Camera custom, controlled by user (UpdateCamera() does nothing)
-    CAMERA_FREE = rl.CAMERA_FREE,
-    CAMERA_ORBITAL = rl.CAMERA_ORBITAL, // Camera orbital, around target, zoom supported
-    CAMERA_FIRST_PERSON = rl.CAMERA_FIRST_PERSON,
-    CAMERA_THIRD_PERSON = rl.CAMERA_THIRD_PERSON,
+    CUSTOM = rl.CAMERA_CUSTOM, // Camera custom, controlled by user (UpdateCamera() does nothing)
+    FREE = rl.CAMERA_FREE,
+    ORBITAL = rl.CAMERA_ORBITAL, // Camera orbital, around target, zoom supported
+    FIRST_PERSON = rl.CAMERA_FIRST_PERSON,
+    THIRD_PERSON = rl.CAMERA_THIRD_PERSON,
 
     fn to_rl(this: @This()) rl.CameraMode {
         return @intFromEnum(this);
     }
 };
 
-pub const Camera_3d = struct {
+pub const Camera_3d = extern struct {
     position: math.Vector3f,
     target: math.Vector3f,
     up: math.Vector3f,
+    // TODO: helper for converting between vertical and horizontal fov
     fovy: f32,
     projection: Camera_Projection,
 
-    fn to_rl(this: Camera_3d) rl.Camera3D {
-        return .{
-            // TODO: helper for converting between vertical and horizontal fov
-            .fovy = this.fovy,
-            .projection = @bitCast(this.projection.to_rl()),
-            .position = this.position.to_rl(),
-            .target = this.target.to_rl(),
-            .up = this.up.to_rl(),
-        };
+    fn to_rl(this: *const Camera_3d) *const rl.Camera3D {
+        return @ptrCast(this);
+    }
+
+    fn to_rl_mut(this: *Camera_3d) *rl.Camera3D {
+        return @ptrCast(this);
     }
 };
+
+pub const Bounding_Box = extern struct {
+    min: math.Vector3f,
+    max: math.Vector3f,
+};
+
+comptime {
+    const assert = std.debug.assert;
+
+    assert(@sizeOf(Camera_3d) == @sizeOf(rl.Camera3D));
+    assert(@sizeOf(Bounding_Box) == @sizeOf(rl.BoundingBox));
+}
 
 pub fn init_window(width: u32, height: u32, title: [:0]const u8) void {
     rl.InitWindow(@intCast(width), @intCast(height), title);
@@ -257,6 +271,10 @@ pub fn window_should_close() bool {
 
 pub fn set_target_fps(fps: u32) void {
     rl.SetTargetFPS(@intCast(fps));
+}
+
+pub fn get_frame_time() f32 {
+    return rl.GetFrameTime();
 }
 
 pub fn begin_drawing() void {
@@ -279,6 +297,14 @@ pub fn draw_rectangle_v(position: math.Vector2f, size: math.Vector2f, color: Col
     rl.DrawRectangleV(position.to_rl(), size.to_rl(), color.to_rl());
 }
 
+pub fn draw_plane(center: math.Vector3f, size: math.Vector2f, color: Color) void {
+    rl.DrawPlane(center.to_rl(), size.to_rl(), color.to_rl());
+}
+
+pub fn draw_grid(slices: u32, spacing: f32) void {
+    rl.DrawGrid(@intCast(slices), spacing);
+}
+
 pub fn is_key_pressed(key: Key) bool {
     return rl.IsKeyPressed(@intCast(key.to_rl()));
 }
@@ -299,8 +325,12 @@ pub fn is_key_up(key: Key) bool {
     return rl.IsKeyUp(@intCast(key.to_rl()));
 }
 
+pub fn get_mouse_wheel_move() f32 {
+    return rl.GetMouseWheelMove();
+}
+
 pub fn begin_mode_3d(camera: Camera_3d) void {
-    rl.BeginMode3D(camera.to_rl());
+    rl.BeginMode3D(camera.to_rl().*);
 }
 
 pub fn end_mode_3d() void {
@@ -315,10 +345,46 @@ pub fn load_model(path: [:0]const u8) Model {
 
 pub fn unload_model(model: Model) void {
     // TODO: nochicken bitcast
-    rl.UnloadModel(@bitCast(model));
+    rl.UnloadModel(model.to_rl());
 }
 
 pub fn draw_model(model: Model, position: math.Vector3f, scale: f32, tint: Color) void {
     // TODO: nochicken bitcast
-    rl.DrawModel(@bitCast(model), position.to_rl(), scale, tint.to_rl());
+    rl.DrawModel(model.to_rl(), position.to_rl(), scale, tint.to_rl());
+}
+
+pub fn get_model_bounding_box(model: Model) Bounding_Box {
+    const bounding_box = rl.GetModelBoundingBox(model.to_rl());
+    return @bitCast(bounding_box);
+}
+
+pub fn disable_cursor() void {
+    rl.DisableCursor();
+}
+
+pub fn enable_cursor() void {
+    rl.EnableCursor();
+}
+
+pub fn get_mouse_delta() math.Vector2f {
+    const delta = rl.GetMouseDelta();
+    return @bitCast(delta);
+}
+
+pub fn update_camera(camera: *Camera_3d, mode: Camera_Mode) void {
+    rl.UpdateCamera(camera.to_rl_mut(), @intCast(mode.to_rl()));
+}
+
+// TODO: move functions from rcamera to separate module?
+
+pub fn camera_move_to_target(camera: *Camera_3d, delta: f32) void {
+    rl.CameraMoveToTarget(camera.to_rl_mut(), delta);
+}
+
+pub fn camera_yaw(camera: *Camera_3d, angle: f32, rotate_around_target: bool) void {
+    rl.CameraYaw(camera.to_rl_mut(), angle, rotate_around_target);
+}
+
+pub fn camera_pitch(camera: *Camera_3d, angle: f32, lock_view: bool, rotate_around_target: bool, rotate_up: bool) void {
+    rl.CameraPitch(camera.to_rl_mut(), angle, lock_view, rotate_around_target, rotate_up);
 }

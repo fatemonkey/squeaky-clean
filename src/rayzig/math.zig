@@ -1,10 +1,11 @@
+const std = @import("std");
 const rl = @import("raylib");
 
 // TODO: union to allow referencing the fields as rgba, uv??, ...?
 // TODO: is there a way to not need to duplicate the implementations of each function for Vector2, Vector3, and Vector4?
 
 fn Vector2(Element_Type: type) type {
-    return struct {
+    return extern struct {
         x: Element_Type,
         y: Element_Type,
 
@@ -22,6 +23,10 @@ fn Vector2(Element_Type: type) type {
 
         pub fn one() This {
             return init(1, 1);
+        }
+
+        pub fn is_zero(this: This) bool {
+            return this.x == 0 and this.y == 0;
         }
 
         pub fn add_elements(this: This, rhs: This) This {
@@ -117,7 +122,7 @@ fn Vector2(Element_Type: type) type {
 }
 
 fn Vector3(Element_Type: type) type {
-    return struct {
+    return extern struct {
         x: Element_Type,
         y: Element_Type,
         z: Element_Type,
@@ -136,6 +141,10 @@ fn Vector3(Element_Type: type) type {
 
         pub fn one() This {
             return init(1, 1, 1);
+        }
+
+        pub fn is_zero(this: This) bool {
+            return this.x == 0 and this.y == 0 and this.z == 0;
         }
 
         pub fn add_elements(this: This, rhs: This) This {
@@ -224,7 +233,7 @@ fn Vector3(Element_Type: type) type {
 }
 
 fn Vector4(Element_Type: type) type {
-    return struct {
+    return extern struct {
         x: Element_Type,
         y: Element_Type,
         z: Element_Type,
@@ -244,6 +253,10 @@ fn Vector4(Element_Type: type) type {
 
         pub fn one() This {
             return init(1, 1, 1, 1);
+        }
+
+        pub fn is_zero(this: This) bool {
+            return this.x == 0 and this.y == 0 and this.z == 0 and this.w == 0;
         }
 
         pub fn add_elements(this: This, rhs: This) This {
@@ -343,6 +356,14 @@ pub const Vector4i = Vector4(i32);
 pub const Vector2u = Vector2(u32);
 pub const Vector3u = Vector3(u32);
 pub const Vector4u = Vector4(u32);
+
+comptime {
+    const assert = std.debug.assert;
+
+    assert(@sizeOf(Vector2f) == @sizeOf(rl.Vector2));
+    assert(@sizeOf(Vector3f) == @sizeOf(rl.Vector3));
+    assert(@sizeOf(Vector4f) == @sizeOf(rl.Vector4));
+}
 
 pub fn remap(value: f32, old_min: f32, old_max: f32, new_min: f32, new_max: f32) f32 {
     const old_range = old_max - old_min;

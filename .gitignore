@@ -1,3 +1,5 @@
 /.zig-cache
 /zig-out
 /local_dev
+# We don't need to track any release zips since they can just be recreated from source
+/releases

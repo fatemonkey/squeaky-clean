@@ -57,8 +57,10 @@ pub fn build(b: *std.Build) !void {
             },
         }),
     });
+    // Don't install the pdb file unless this is a debug build
+    const pdb_dir: std.Build.Step.InstallArtifact.Options.Dir = if (optimize == .Debug) .default else .disabled;
     // Override the default of using a "bin" directory for the executable as this is a game and we want the game's executable to just be at the top level
-    b.getInstallStep().dependOn(&b.addInstallArtifact(exe, .{ .dest_dir = .{ .override = .prefix } }).step);
+    b.getInstallStep().dependOn(&b.addInstallArtifact(exe, .{ .dest_dir = .{ .override = .prefix }, .pdb_dir = pdb_dir }).step);
 
     // Install assets
     b.installDirectory(.{ .source_dir = b.path("src/assets"), .install_dir = .prefix, .install_subdir = "assets" });

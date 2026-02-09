@@ -22,6 +22,8 @@ pub fn main() void {
     const dt = 1.0 / @as(comptime_float, target_fps);
     rl.set_target_fps(target_fps);
 
+    var show_debug_overlay = false;
+
     // TODO: now the only way to close the game is with the escape key since that, by default, tells raylib to close the window
     //       instead, we'll want a menu and to re-enable the mouse when in that menu, with a quit option
     var cursor_enabled = false;
@@ -55,6 +57,10 @@ pub fn main() void {
                 rl.enable_cursor();
                 cursor_enabled = true;
             }
+        }
+
+        if (rl.is_key_pressed(.F1)) {
+            show_debug_overlay = !show_debug_overlay;
         }
 
         // TODO: swizzle function
@@ -106,19 +112,24 @@ pub fn main() void {
             // offset the plane ever so slightly below ground level so the grid is cleanly above it
             rl.draw_plane(rm.Vector3f.init(0, -0.01, 0), rm.Vector2f.init(plane_size, plane_size), .DARKBROWN);
             const grid_subdivisions = 2;
-            rl.draw_grid(plane_size * grid_subdivisions, 1.0 / @as(comptime_float, grid_subdivisions));
-            rl.draw_model_ex(mouse_model, mouse_position, camera.up, camera_yaw, rm.Vector3f.one(), .WHITE);
 
-            const debug_camera_forward_end = mouse_position.add_elements(camera_forward_2d);
-            const debug_camera_right_end = mouse_position.add_elements(camera_right_2d);
-            rl.draw_line_3d(mouse_position, debug_camera_forward_end, .GREEN);
-            rl.draw_line_3d(mouse_position, debug_camera_right_end, .RED);
+            if (show_debug_overlay) {
+                rl.draw_grid(plane_size * grid_subdivisions, 1.0 / @as(comptime_float, grid_subdivisions));
+
+                const debug_camera_forward_end = mouse_position.add_elements(camera_forward_2d);
+                const debug_camera_right_end = mouse_position.add_elements(camera_right_2d);
+                rl.draw_line_3d(mouse_position, debug_camera_forward_end, .GREEN);
+                rl.draw_line_3d(mouse_position, debug_camera_right_end, .RED);
+            }
+            rl.draw_model_ex(mouse_model, mouse_position, camera.up, camera_yaw, rm.Vector3f.one(), .WHITE);
         }
 
-        rl.draw_text(text_format("Camera Pos: {f}", .{camera.position}), debug_text_pos.x, debug_text_pos.y + 0 * debug_font_size, debug_font_size, .WHITE);
-        rl.draw_text(text_format("Camera Tgt: {f}", .{camera.target}), debug_text_pos.x, debug_text_pos.y + 1 * debug_font_size, debug_font_size, .WHITE);
-        rl.draw_text(text_format("Camera Dir: {f}", .{camera_forward_2d}), debug_text_pos.x, debug_text_pos.y + 2 * debug_font_size, debug_font_size, .WHITE);
-        rl.draw_text(text_format("Camera Yaw: {d:0.3}", .{camera_yaw}), debug_text_pos.x, debug_text_pos.y + 3 * debug_font_size, debug_font_size, .WHITE);
+        if (show_debug_overlay) {
+            rl.draw_text(text_format("Camera Pos: {f}", .{camera.position}), debug_text_pos.x, debug_text_pos.y + 0 * debug_font_size, debug_font_size, .WHITE);
+            rl.draw_text(text_format("Camera Tgt: {f}", .{camera.target}), debug_text_pos.x, debug_text_pos.y + 1 * debug_font_size, debug_font_size, .WHITE);
+            rl.draw_text(text_format("Camera Dir: {f}", .{camera_forward_2d}), debug_text_pos.x, debug_text_pos.y + 2 * debug_font_size, debug_font_size, .WHITE);
+            rl.draw_text(text_format("Camera Yaw: {d:0.3}", .{camera_yaw}), debug_text_pos.x, debug_text_pos.y + 3 * debug_font_size, debug_font_size, .WHITE);
+        }
     }
 }
 

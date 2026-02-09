@@ -22,6 +22,10 @@ pub fn build(b: *std.Build) !void {
     });
 
     const raylib_lib = raylib.artifact("raylib");
+    if (target.result.abi == .msvc) {
+        raylib_lib.linkSystemLibrary("User32");
+        raylib_lib.linkSystemLibrary("Shell32");
+    }
 
     const raylib_translate_c = b.addTranslateC(.{
         .root_source_file = b.path("src/rayzig/include.h"),

@@ -190,7 +190,7 @@ pub const Key = enum(rl.KeyboardKey) {
     }
 };
 
-// TODO: nochicken extern
+// TODO: nochicken store the fields instead of byte array
 pub const Model = extern struct {
     // transform: Matrix,
     // mesh_count: c_int,
@@ -202,10 +202,22 @@ pub const Model = extern struct {
     // bones: [*c]BoneInfo,
     // bind_pose: [*c]Transform,
 
-    // TODO: nochicken
     bytes: [@sizeOf(rl.Model)]u8,
 
-    pub fn to_rl(this: Model) rl.Model {
+    pub fn to_rl(this: @This()) rl.Model {
+        return @bitCast(this);
+    }
+};
+
+// TODO: should this store C types or Zig types?
+pub const Texture_2d = extern struct {
+    id: c_uint,
+    width: c_int,
+    height: c_int,
+    mipmaps: c_int,
+    format: c_int,
+
+    pub fn to_rl(this: @This()) rl.Texture2D {
         return @bitCast(this);
     }
 };
@@ -357,9 +369,17 @@ pub fn end_mode_3d() void {
     rl.EndMode3D();
 }
 
+pub fn load_texture(path: [:0]const u8) Texture_2d {
+    const texture = rl.LoadTexture(path);
+    return @bitCast(texture);
+}
+
+pub fn unload_texture(texture: Texture_2d) void {
+    rl.UnloadTexture(texture.to_rl());
+}
+
 pub fn load_model(path: [:0]const u8) Model {
     const model = rl.LoadModel(path);
-    // TODO: nochicken bitcast
     return @bitCast(model);
 }
 

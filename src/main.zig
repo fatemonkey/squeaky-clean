@@ -29,6 +29,9 @@ pub fn main() void {
     var cursor_enabled = false;
     rl.disable_cursor();
 
+    const floor_texture = rl.load_texture("assets/thirdparty/wood5.png");
+    defer rl.unload_texture(floor_texture);
+
     const mouse_model = rl.load_model("assets/mouse7.glb");
     const mouse_bounds = rl.get_model_bounding_box(mouse_model);
     var mouse_position = rm.Vector3f.init(0, -mouse_bounds.min.y, 0);
@@ -147,11 +150,19 @@ pub fn main() void {
             defer rl.end_mode_3d();
 
             const plane_size = 2;
-            // offset the plane ever so slightly below ground level so the grid is cleanly above it
-            rl.draw_plane(rm.Vector3f.init(0, -0.01, 0), rm.Vector2f.init(plane_size, plane_size), .DARKBROWN);
-            const grid_subdivisions = 2;
+            {
+                // offset the plane ever so slightly below ground level so the grid is cleanly above it
+                const y = -0.01;
+                const half_size = plane_size / 2;
+                const tl = rm.Vector3f.init(-half_size, y, -half_size);
+                const tr = rm.Vector3f.init(half_size, y, -half_size);
+                const br = rm.Vector3f.init(half_size, y, half_size);
+                const bl = rm.Vector3f.init(-half_size, y, half_size);
+                draw_textured_3d_quad(floor_texture, tl, bl, br, tr);
+            }
 
             if (show_debug_overlay) {
+                const grid_subdivisions = 2;
                 rl.draw_grid(plane_size * grid_subdivisions, 1.0 / @as(comptime_float, grid_subdivisions));
 
                 const debug_camera_forward_end = mouse_position.add_elements(camera_forward_2d);
@@ -216,4 +227,35 @@ fn closest_angle_distance(a: f32, b: f32) f32 {
 // Given an angle in degrees, normalizes it into the range -180 to 180
 fn normalize_angle(angle: f32) f32 {
     return @mod(angle + 180, 360) - 180;
+}
+
+// tl = top left
+// bl = bottom left
+// br = bottom right
+// tr = top right
+fn draw_textured_3d_quad(texture: rl.Texture_2d, tl: rm.Vector3f, bl: rm.Vector3f, br: rm.Vector3f, tr: rm.Vector3f) void {
+    const gl = rl.gl;
+
+    gl.rlBegin(gl.RL_QUADS);
+    defer gl.rlEnd();
+
+    gl.rlSetTexture(texture.id);
+
+    // The texture is multiplied by this tint
+    const brightness = 0.5;
+    gl.rlColor4f(brightness, brightness, brightness, 1.0);
+
+    // "BL" triangle
+    gl.rlTexCoord2f(0, 1);
+    gl.rlVertex3f(tl.x, tl.y, tl.z);
+
+    gl.rlTexCoord2f(0, 0);
+    gl.rlVertex3f(bl.x, bl.y, bl.z);
+
+    gl.rlTexCoord2f(1, 0);
+    gl.rlVertex3f(br.x, br.y, br.z);
+
+    // "TR" triangle
+    gl.rlTexCoord2f(1, 1);
+    gl.rlVertex3f(tr.x, tr.y, tr.z);
 }

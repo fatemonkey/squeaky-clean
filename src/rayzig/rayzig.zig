@@ -2,6 +2,9 @@ const std = @import("std");
 const rl = @import("raylib");
 pub const math = @import("math.zig");
 
+// TODO: wrapper around this instead of just exporting it
+pub const gl = @import("rlgl");
+
 // TODO: should we make all rayzig structures binary compatibile with raylib so we can easily just cast between them...?
 
 pub const Color = struct {

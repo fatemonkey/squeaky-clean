@@ -16,31 +16,40 @@ pub fn build(b: *std.Build) !void {
     raw_options.addOption([]const u8, "version_string", version_string);
     const options = raw_options.createModule();
 
-    const raylib = b.dependency("raylib", .{
+    const raylib_dependency = b.dependency("raylib", .{
         .target = target,
         .optimize = optimize,
     });
 
-    const raylib_lib = raylib.artifact("raylib");
+    const raylib_lib = raylib_dependency.artifact("raylib");
     if (target.result.abi == .msvc) {
         raylib_lib.linkSystemLibrary("User32");
         raylib_lib.linkSystemLibrary("Shell32");
     }
 
     const raylib_translate_c = b.addTranslateC(.{
-        .root_source_file = b.path("src/rayzig/include.h"),
+        .root_source_file = b.path("src/rayzig/raylib.h"),
         .target = target,
         .optimize = optimize,
     });
-    raylib_translate_c.addIncludePath(raylib.path("src"));
-    const raylib_h = raylib_translate_c.createModule();
+    raylib_translate_c.addIncludePath(raylib_dependency.path("src"));
+    const raylib = raylib_translate_c.createModule();
+
+    const rlgl_translate_c = b.addTranslateC(.{
+        .root_source_file = b.path("src/rayzig/rlgl.h"),
+        .target = target,
+        .optimize = optimize,
+    });
+    rlgl_translate_c.addIncludePath(raylib_dependency.path("src"));
+    const rlgl = rlgl_translate_c.createModule();
 
     const rayzig = b.createModule(.{
         .target = target,
         .optimize = optimize,
         .root_source_file = b.path("src/rayzig/rayzig.zig"),
         .imports = &.{
-            .{ .name = "raylib", .module = raylib_h },
+            .{ .name = "raylib", .module = raylib },
+            .{ .name = "rlgl", .module = rlgl },
         },
     });
     rayzig.linkLibrary(raylib_lib);

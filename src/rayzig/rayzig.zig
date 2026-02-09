@@ -318,6 +318,10 @@ pub fn draw_grid(slices: u32, spacing: f32) void {
     rl.DrawGrid(@intCast(slices), spacing);
 }
 
+pub fn draw_line_3d(start: math.Vector3f, end: math.Vector3f, color: Color) void {
+    rl.DrawLine3D(start.to_rl(), end.to_rl(), color.to_rl());
+}
+
 pub fn is_key_pressed(key: Key) bool {
     return rl.IsKeyPressed(@intCast(key.to_rl()));
 }
@@ -357,13 +361,15 @@ pub fn load_model(path: [:0]const u8) Model {
 }
 
 pub fn unload_model(model: Model) void {
-    // TODO: nochicken bitcast
     rl.UnloadModel(model.to_rl());
 }
 
 pub fn draw_model(model: Model, position: math.Vector3f, scale: f32, tint: Color) void {
-    // TODO: nochicken bitcast
     rl.DrawModel(model.to_rl(), position.to_rl(), scale, tint.to_rl());
+}
+
+pub fn draw_model_ex(model: Model, position: math.Vector3f, rotation_axis: math.Vector3f, rotation_angle: f32, scale: math.Vector3f, tint: Color) void {
+    rl.DrawModelEx(model.to_rl(), position.to_rl(), rotation_axis.to_rl(), rotation_angle, scale.to_rl(), tint.to_rl());
 }
 
 pub fn get_model_bounding_box(model: Model) Bounding_Box {

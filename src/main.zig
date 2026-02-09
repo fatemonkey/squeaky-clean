@@ -14,15 +14,17 @@ pub fn main() void {
         break :blk "<title>";
     };
 
-    rl.init_window(800, 600, title);
+    rl.init_window(1280, 720, title);
     defer rl.close_window();
 
     // TODO: detect if actual frame rate is falling below target, and adjust
     const target_fps = 60;
     const dt = 1.0 / @as(comptime_float, target_fps);
     rl.set_target_fps(target_fps);
+
     // TODO: now the only way to close the game is with the escape key since that, by default, tells raylib to close the window
     //       instead, we'll want a menu and to re-enable the mouse when in that menu, with a quit option
+    var cursor_enabled = false;
     rl.disable_cursor();
 
     const mouse_model = rl.load_model("assets/mouse7.glb");
@@ -39,13 +41,41 @@ pub fn main() void {
         .target = mouse_position,
     };
     while (!rl.window_should_close()) {
+        rl.begin_drawing();
+        defer rl.end_drawing();
+
+        const debug_font_size = 16;
+        const debug_text_pos = rm.Vector2i.init(5, 5);
+
+        if (rl.is_key_pressed(.TAB)) {
+            if (cursor_enabled) {
+                rl.disable_cursor();
+                cursor_enabled = false;
+            } else {
+                rl.enable_cursor();
+                cursor_enabled = true;
+            }
+        }
+
+        // TODO: swizzle function
+        // drop the vertical component of the camera direction so we can get the camera's direction just along the xz plane
+        const camera_dir_unnormalized = camera.target.sub_elements(camera.position);
+        const camera_dir = camera_dir_unnormalized.normalize();
+        const camera_forward_2d = rm.Vector3f.init(camera_dir_unnormalized.x, 0, camera_dir_unnormalized.z).normalize();
+        const camera_right_2d = camera_forward_2d.cross_product(camera.up).normalize();
+
+        // subtract 90 to correct for 0 degrees being to the right, whereas we want 0 degrees to be considered "no rotation" and thus camera forward,
+        // in the z direction
+        // z is negated since z is positive coming out of the screen (backwards) and negative going into the screen (forwards)
+        const camera_yaw = std.math.radiansToDegrees(std.math.atan2(-camera_forward_2d.z, camera_forward_2d.x)) - 90.0;
+
         const mouse_speed = 0.3; // meters per second
         var movement = rm.Vector3f.zero();
         if (rl.is_key_down(.W)) {
-            movement.z -= 1;
+            movement.z += 1;
         }
         if (rl.is_key_down(.S)) {
-            movement.z += 1;
+            movement.z -= 1;
         }
         if (rl.is_key_down(.A)) {
             movement.x -= 1;
@@ -54,14 +84,17 @@ pub fn main() void {
             movement.x += 1;
         }
         if (!movement.is_zero()) {
-            mouse_position = mouse_position.add_elements(movement.normalize().scale(dt * mouse_speed));
+            const z_movement = camera_forward_2d.scale(movement.z);
+            const x_movement = camera_right_2d.scale(movement.x);
+            const movement_2d = x_movement.add_elements(z_movement);
+            mouse_position = mouse_position.add_elements(movement_2d.normalize().scale(dt * mouse_speed));
         }
 
         camera.target = mouse_position;
-        update_camera(&camera);
-
-        rl.begin_drawing();
-        defer rl.end_drawing();
+        camera.position = mouse_position.sub_elements(camera_dir);
+        if (!cursor_enabled) {
+            update_camera(&camera);
+        }
 
         rl.clear_background(.DARKGRAY);
 
@@ -74,15 +107,18 @@ pub fn main() void {
             rl.draw_plane(rm.Vector3f.init(0, -0.01, 0), rm.Vector2f.init(plane_size, plane_size), .DARKBROWN);
             const grid_subdivisions = 2;
             rl.draw_grid(plane_size * grid_subdivisions, 1.0 / @as(comptime_float, grid_subdivisions));
-            rl.draw_model(mouse_model, mouse_position, 1.0, .WHITE);
+            rl.draw_model_ex(mouse_model, mouse_position, camera.up, camera_yaw, rm.Vector3f.one(), .WHITE);
+
+            const debug_camera_forward_end = mouse_position.add_elements(camera_forward_2d);
+            const debug_camera_right_end = mouse_position.add_elements(camera_right_2d);
+            rl.draw_line_3d(mouse_position, debug_camera_forward_end, .GREEN);
+            rl.draw_line_3d(mouse_position, debug_camera_right_end, .RED);
         }
 
-        const font_size = 16;
-        const text_pos = rm.Vector2i.init(5, 5);
-        const camera_dir = camera.position.sub_elements(camera.target).normalize();
-        rl.draw_text(text_format("Camera Pos: {f}", .{camera.position}), text_pos.x, text_pos.y + 0 * font_size, font_size, .WHITE);
-        rl.draw_text(text_format("Camera Tgt: {f}", .{camera.target}), text_pos.x, text_pos.y + 1 * font_size, font_size, .WHITE);
-        rl.draw_text(text_format("Camera Dir: {f}", .{camera_dir}), text_pos.x, text_pos.y + 2 * font_size, font_size, .WHITE);
+        rl.draw_text(text_format("Camera Pos: {f}", .{camera.position}), debug_text_pos.x, debug_text_pos.y + 0 * debug_font_size, debug_font_size, .WHITE);
+        rl.draw_text(text_format("Camera Tgt: {f}", .{camera.target}), debug_text_pos.x, debug_text_pos.y + 1 * debug_font_size, debug_font_size, .WHITE);
+        rl.draw_text(text_format("Camera Dir: {f}", .{camera_forward_2d}), debug_text_pos.x, debug_text_pos.y + 2 * debug_font_size, debug_font_size, .WHITE);
+        rl.draw_text(text_format("Camera Yaw: {d:0.3}", .{camera_yaw}), debug_text_pos.x, debug_text_pos.y + 3 * debug_font_size, debug_font_size, .WHITE);
     }
 }
 

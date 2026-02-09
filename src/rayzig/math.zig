@@ -193,9 +193,10 @@ fn Vector3(Element_Type: type) type {
         }
 
         pub fn cross_product(this: This, rhs: This) This {
-            _ = this;
-            _ = rhs;
-            @compileError("todo");
+            const x = this.y * rhs.z - this.z * rhs.y;
+            const y = -(this.x * rhs.z - this.z * rhs.x);
+            const z = this.x * rhs.y - this.y * rhs.x;
+            return init(x, y, z);
         }
 
         pub fn length(this: This) Element_Type {

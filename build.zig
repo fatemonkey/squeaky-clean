@@ -74,7 +74,8 @@ pub fn build(b: *std.Build) !void {
     //       otherwise, the package might include old files
 
     const package_step = b.step("package", "Package a release of the game");
-    const package_name = try std.fmt.allocPrint(b.allocator, "squeaky_clean-{s}", .{version_string});
+    const target_name = try std.fmt.allocPrint(b.allocator, "{s}-{s}-{s}", .{ @tagName(target.result.cpu.arch), @tagName(target.result.os.tag), @tagName(target.result.abi) });
+    const package_name = try std.fmt.allocPrint(b.allocator, "squeaky_clean-{s}-{s}", .{ version_string, target_name });
     const package_file_name = try std.fmt.allocPrint(b.allocator, "releases/{s}.zip", .{package_name});
 
     // const prep_install_command = b.addRemoveDirTree(install_path);

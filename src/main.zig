@@ -32,6 +32,9 @@ pub fn main() void {
     const mouse_model = rl.load_model("assets/mouse7.glb");
     const mouse_bounds = rl.get_model_bounding_box(mouse_model);
     var mouse_position = rm.Vector3f.init(0, -mouse_bounds.min.y, 0);
+    var mouse_yaw: f32 = 0;
+    const mouse_speed = 0.3; // meters per second
+    const mouse_turn_rate = 270.0; // degrees per second
     const mouse_closest_zoom_radius: f32 = blk: {
         const furthest_extremity = @max(
             @abs(mouse_bounds.max.x),
@@ -56,6 +59,7 @@ pub fn main() void {
     };
     var camera_zoom: f32 = 1.0;
     const max_camera_zoom = 3;
+    const camera_zoom_speed = 1.15;
     while (!rl.window_should_close()) {
         rl.begin_drawing();
         defer rl.end_drawing();
@@ -87,9 +91,8 @@ pub fn main() void {
         // subtract 90 to correct for 0 degrees being to the right, whereas we want 0 degrees to be considered "no rotation" and thus camera forward,
         // in the z direction
         // z is negated since z is positive coming out of the screen (backwards) and negative going into the screen (forwards)
-        const camera_yaw = std.math.radiansToDegrees(std.math.atan2(-camera_forward_2d.z, camera_forward_2d.x)) - 90.0;
+        const camera_yaw = normalize_angle(std.math.radiansToDegrees(std.math.atan2(-camera_forward_2d.z, camera_forward_2d.x)) - 90.0);
 
-        const mouse_speed = 0.3; // meters per second
         var movement = rm.Vector3f.zero();
         if (rl.is_key_down(.W)) {
             movement.z += 1;
@@ -106,16 +109,23 @@ pub fn main() void {
         if (!movement.is_zero()) {
             const z_movement = camera_forward_2d.scale(movement.z);
             const x_movement = camera_right_2d.scale(movement.x);
-            const movement_2d = x_movement.add_elements(z_movement);
-            mouse_position = mouse_position.add_elements(movement_2d.normalize().scale(dt * mouse_speed));
+            const movement_2d = x_movement.add_elements(z_movement).normalize();
+            mouse_position = mouse_position.add_elements(movement_2d.scale(dt * mouse_speed));
+
+            // we want the mouse to face the direction of movement
+            const mouse_yaw_target = std.math.radiansToDegrees(std.math.atan2(-movement_2d.z, movement_2d.x)) - 90.0;
+            const needed_turn = closest_angle_distance(mouse_yaw_target, mouse_yaw);
+            const turn_capability = mouse_turn_rate * dt;
+            const delta = std.math.sign(needed_turn) * @min(turn_capability, @abs(needed_turn));
+            mouse_yaw = normalize_angle(mouse_yaw + delta);
         }
 
         const mouse_wheel = rl.get_mouse_wheel_move();
         // TODO: make sure its possible to get back perfectly to neutral/default zoom
         if (mouse_wheel > 0) {
-            camera_zoom /= 1.1;
+            camera_zoom /= camera_zoom_speed;
         } else if (mouse_wheel < 0) {
-            camera_zoom *= 1.1;
+            camera_zoom *= camera_zoom_speed;
         }
         if (camera_zoom > max_camera_zoom) {
             camera_zoom = max_camera_zoom;
@@ -149,7 +159,8 @@ pub fn main() void {
                 rl.draw_line_3d(mouse_position, debug_camera_forward_end, .GREEN);
                 rl.draw_line_3d(mouse_position, debug_camera_right_end, .RED);
             }
-            rl.draw_model_ex(mouse_model, mouse_position, camera.up, camera_yaw, rm.Vector3f.one(), .WHITE);
+
+            rl.draw_model_ex(mouse_model, mouse_position, camera.up, mouse_yaw, rm.Vector3f.one(), .WHITE);
         }
 
         if (show_debug_overlay) {
@@ -157,6 +168,7 @@ pub fn main() void {
             rl.draw_text(text_format("Camera Tgt: {f}", .{camera.target}), debug_text_pos.x, debug_text_pos.y + 1 * debug_font_size, debug_font_size, .WHITE);
             rl.draw_text(text_format("Camera Dir: {f}", .{camera_forward_2d}), debug_text_pos.x, debug_text_pos.y + 2 * debug_font_size, debug_font_size, .WHITE);
             rl.draw_text(text_format("Camera Yaw: {d:0.3}", .{camera_yaw}), debug_text_pos.x, debug_text_pos.y + 3 * debug_font_size, debug_font_size, .WHITE);
+            rl.draw_text(text_format("Mouse Yaw: {d:0.3}", .{mouse_yaw}), debug_text_pos.x, debug_text_pos.y + 4 * debug_font_size, debug_font_size, .WHITE);
         }
     }
 }
@@ -194,4 +206,14 @@ fn update_camera(camera: *rl.Camera_3d) void {
     //     CameraYaw(camera, -(GetGamepadAxisMovement(0, GAMEPAD_AXIS_RIGHT_X)*2)*CAMERA_MOUSE_MOVE_SENSITIVITY, rotateAroundTarget);
     //     CameraPitch(camera, -(GetGamepadAxisMovement(0, GAMEPAD_AXIS_RIGHT_Y)*2)*CAMERA_MOUSE_MOVE_SENSITIVITY, lockView, rotateAroundTarget, rotateUp);
     // }
+}
+
+// Given two angles (in degrees), returns the smaller of the two distances between them around a circle
+fn closest_angle_distance(a: f32, b: f32) f32 {
+    return normalize_angle(a - b);
+}
+
+// Given an angle in degrees, normalizes it into the range -180 to 180
+fn normalize_angle(angle: f32) f32 {
+    return @mod(angle + 180, 360) - 180;
 }

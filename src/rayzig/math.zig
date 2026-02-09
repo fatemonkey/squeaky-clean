@@ -218,6 +218,11 @@ fn Vector3(Element_Type: type) type {
             return dx * dx + dy * dy + dz * dz;
         }
 
+        // TODO: implement zig-side instead of calling out to rl
+        pub fn rotate_by_axis_angle(this: This, axis: This, angle: f32) This {
+            return @bitCast(rl.Vector3RotateByAxisAngle(this.to_rl(), axis.to_rl(), angle));
+        }
+
         pub fn to_rl(this: This) rl.Vector3 {
             return .{ .x = this.x, .y = this.y, .z = this.z };
         }

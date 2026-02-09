@@ -32,6 +32,18 @@ pub fn main() void {
     const mouse_model = rl.load_model("assets/mouse7.glb");
     const mouse_bounds = rl.get_model_bounding_box(mouse_model);
     var mouse_position = rm.Vector3f.init(0, -mouse_bounds.min.y, 0);
+    const mouse_closest_zoom_radius: f32 = blk: {
+        const furthest_extremity = @max(
+            @abs(mouse_bounds.max.x),
+            @abs(mouse_bounds.max.y),
+            @abs(mouse_bounds.max.z),
+            @abs(mouse_bounds.min.x),
+            @abs(mouse_bounds.min.y),
+            @abs(mouse_bounds.min.z),
+        );
+        // Give some extra margin
+        break :blk furthest_extremity + 0.1;
+    };
     defer rl.unload_model(mouse_model);
 
     var camera = rl.Camera_3d{
@@ -42,6 +54,8 @@ pub fn main() void {
         .position = rm.Vector3f.init(0, 0.5, 0.5),
         .target = mouse_position,
     };
+    var camera_zoom: f32 = 1.0;
+    const max_camera_zoom = 3;
     while (!rl.window_should_close()) {
         rl.begin_drawing();
         defer rl.end_drawing();
@@ -96,8 +110,22 @@ pub fn main() void {
             mouse_position = mouse_position.add_elements(movement_2d.normalize().scale(dt * mouse_speed));
         }
 
+        const mouse_wheel = rl.get_mouse_wheel_move();
+        // TODO: make sure its possible to get back perfectly to neutral/default zoom
+        if (mouse_wheel > 0) {
+            camera_zoom /= 1.1;
+        } else if (mouse_wheel < 0) {
+            camera_zoom *= 1.1;
+        }
+        if (camera_zoom > max_camera_zoom) {
+            camera_zoom = max_camera_zoom;
+        }
+        if (camera_zoom < mouse_closest_zoom_radius) {
+            camera_zoom = mouse_closest_zoom_radius;
+        }
+
         camera.target = mouse_position;
-        camera.position = mouse_position.sub_elements(camera_dir);
+        camera.position = mouse_position.sub_elements(camera_dir.scale(camera_zoom));
         if (!cursor_enabled) {
             update_camera(&camera);
         }
@@ -166,9 +194,4 @@ fn update_camera(camera: *rl.Camera_3d) void {
     //     CameraYaw(camera, -(GetGamepadAxisMovement(0, GAMEPAD_AXIS_RIGHT_X)*2)*CAMERA_MOUSE_MOVE_SENSITIVITY, rotateAroundTarget);
     //     CameraPitch(camera, -(GetGamepadAxisMovement(0, GAMEPAD_AXIS_RIGHT_Y)*2)*CAMERA_MOUSE_MOVE_SENSITIVITY, lockView, rotateAroundTarget, rotateUp);
     // }
-
-    // Zoom to target with mouse wheel
-    // TODO: disallow moving inside the mesh, use mesh bounding box?
-    // TODO: this doesn't seem like linear movement
-    rl.camera_move_to_target(camera, -0.15 * rl.get_mouse_wheel_move());
 }

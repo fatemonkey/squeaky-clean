@@ -345,10 +345,10 @@ fn clean_dirt_mask(image: rl.Image, x: u32, y: u32, radius: u32) Clean_Dirt_Resu
     // TODO: clean a circle instead of rectangle, and allow fuzzy edges / partial cleaning instead
 
     // TODO: rect function for clamped subrectangle
-    const left = std.math.clamp(if (x >= radius) x - radius else 0, 0, image.width);
-    const right = std.math.clamp(x + radius, 0, image.width - 1);
-    const top = std.math.clamp(if (y >= radius) y - radius else 0, 0, image.height);
-    const bottom = std.math.clamp(y + radius, 0, image.height - 1);
+    const left = @min(x -| radius, image.width);
+    const right = @min(x + radius, image.width - 1);
+    const top = @min(y -| radius, image.height);
+    const bottom = @min(y + radius, image.height - 1);
 
     std.debug.assert(image.format == .UNCOMPRESSED_GRAYSCALE);
     // TODO: function to get subimage

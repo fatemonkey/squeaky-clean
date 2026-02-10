@@ -1,6 +1,6 @@
 const std = @import("std");
 const rl = @import("rayzig");
-const gl = rl.gl;
+const rgl = rl.rgl;
 const rm = rl.math;
 const options = @import("options");
 
@@ -46,7 +46,7 @@ pub fn main() !void {
     const mask_image_data = try permanent_allocator.alloc(u8, 256 * 256);
     defer permanent_allocator.free(mask_image_data);
     @memset(mask_image_data, 150);
-    var mask_image = blk: {
+    const mask_image = blk: {
         const mask_size = 256;
         break :blk rl.Image{
             .width = mask_size,
@@ -56,6 +56,8 @@ pub fn main() !void {
             .data = mask_image_data.ptr,
         };
     };
+    const full_dirt_amount = mask_image.width * mask_image.height;
+    var dirt_amount = full_dirt_amount;
     const mask_texture = rl.load_texture_from_image(mask_image);
 
     const floor_texture_location = rl.get_shader_location(dirtiness_shader, "texture_a") orelse @panic("unhandled");
@@ -107,6 +109,10 @@ pub fn main() !void {
     while (!rl.window_should_close()) {
         rl.begin_drawing();
         defer rl.end_drawing();
+
+        const window_width = rl.get_render_width();
+        // const window_height = rl.get_render_height();
+        // const window_size = rm.Vector2f.init(@floatFromInt(window_width), @floatFromInt(window_height));
 
         const debug_font_size = 16;
         const debug_text_pos = rm.Vector2i.init(5, 5);
@@ -172,12 +178,16 @@ pub fn main() !void {
         if (mouse_is_on_floor) {
             // Clean the mouse's spot on the image dirt mask
             const x: u32 = @intFromFloat(mouse_floor_position_2d.x * @as(f32, @floatFromInt(mask_image.width)));
-            const y = mask_image.height - @as(u32, @intFromFloat(mouse_floor_position_2d.z * @as(f32, @floatFromInt(mask_image.height))));
-            // TODO: account for alpha, don't just wipe the dirt completely off, allow partial cleaning
-            rl.image_draw_circle(&mask_image, x, y, 8, .BLANK);
-            // TODO: i'd prefer to use update_texture_rec to only update the part that's changing, but we can't set the stride
-            // to tell it how to read from a subregion of the source image...
-            rl.update_texture(mask_texture, mask_image.data.?);
+            const y = @as(u32, @intFromFloat(mouse_floor_position_2d.z * @as(f32, @floatFromInt(mask_image.height))));
+
+            const clean_result = clean_dirt_mask(mask_image, x, y, 8);
+            if (!clean_result.pixels_changed_rect.is_zero()) {
+                const mask_stride: rl.gl.c.GLint = @intCast(mask_image.width);
+                rl.gl.pixelStorei(rl.gl.c.GL_UNPACK_ROW_LENGTH, mask_stride);
+                defer rl.gl.pixelStorei(rl.gl.c.GL_UNPACK_ROW_LENGTH, 0);
+                rl.update_texture_rec(mask_texture, clean_result.pixels_changed_rect, clean_result.pixels);
+                dirt_amount -= clean_result.pixels_cleaned_count;
+            }
         }
 
         const mouse_wheel = rl.get_mouse_wheel_move();
@@ -216,7 +226,7 @@ pub fn main() !void {
 
                 // The texture is multiplied by this tint
                 const brightness = 0.5;
-                gl.rlColor4f(brightness, brightness, brightness, 1.0);
+                rgl.rlColor4f(brightness, brightness, brightness, 1.0);
 
                 rl.set_shader_value_texture(dirtiness_shader, floor_texture_location, floor_texture);
                 rl.set_shader_value_texture(dirtiness_shader, dirt_texture_location, dirt_texture);
@@ -242,6 +252,12 @@ pub fn main() !void {
 
             rl.draw_model_ex(mouse_model, mouse_position, camera.up, mouse_yaw, rm.Vector3f.one(), .WHITE);
         }
+
+        const dirt_clean_amount = 1.0 - @as(f32, @floatFromInt(dirt_amount)) / @as(f32, @floatFromInt(full_dirt_amount));
+        const dirt_clean_text = text_format("{d:0.2}% Clean", .{dirt_clean_amount * 100});
+        const dirt_clean_font_size = 32;
+        const dirt_clean_text_size = rl.measure_text(dirt_clean_text, dirt_clean_font_size);
+        rl.draw_text(dirt_clean_text, @divFloor((@as(i32, @intCast(window_width)) - @as(i32, @intCast(dirt_clean_text_size))), 2), 5, dirt_clean_font_size, .WHITE);
 
         if (show_debug_overlay) {
             rl.draw_text(text_format("Camera Pos: {f}", .{camera.position}), debug_text_pos.x, debug_text_pos.y + 0 * debug_font_size, debug_font_size, .WHITE);
@@ -304,20 +320,63 @@ fn normalize_angle(angle: f32) f32 {
 // br = bottom right
 // tr = top right
 fn draw_3d_quad(tl: rm.Vector3f, bl: rm.Vector3f, br: rm.Vector3f, tr: rm.Vector3f) void {
-    gl.rlBegin(gl.RL_QUADS);
-    defer gl.rlEnd();
+    rgl.rlBegin(rgl.RL_QUADS);
+    defer rgl.rlEnd();
 
-    // "BL" triangle
-    gl.rlTexCoord2f(0, 1);
-    gl.rlVertex3f(tl.x, tl.y, tl.z);
+    rgl.rlTexCoord2f(0, 0);
+    rgl.rlVertex3f(tl.x, tl.y, tl.z);
 
-    gl.rlTexCoord2f(0, 0);
-    gl.rlVertex3f(bl.x, bl.y, bl.z);
+    rgl.rlTexCoord2f(0, 1);
+    rgl.rlVertex3f(bl.x, bl.y, bl.z);
 
-    gl.rlTexCoord2f(1, 0);
-    gl.rlVertex3f(br.x, br.y, br.z);
+    rgl.rlTexCoord2f(1, 1);
+    rgl.rlVertex3f(br.x, br.y, br.z);
 
-    // "TR" triangle
-    gl.rlTexCoord2f(1, 1);
-    gl.rlVertex3f(tr.x, tr.y, tr.z);
+    rgl.rlTexCoord2f(1, 0);
+    rgl.rlVertex3f(tr.x, tr.y, tr.z);
+}
+
+const Clean_Dirt_Result = struct {
+    pixels: *anyopaque, // pointer to the top left of the bounding subrectangle
+    pixels_changed_rect: rl.Rectangle, // bounding subrectangle for where any pixels in the mask got changed at all
+    pixels_cleaned_count: u32, // number of pixels that were completely cleaned to 0
+};
+fn clean_dirt_mask(image: rl.Image, x: u32, y: u32, radius: u32) Clean_Dirt_Result {
+    // TODO: clean a circle instead of rectangle, and allow fuzzy edges / partial cleaning instead
+
+    // TODO: rect function for clamped subrectangle
+    const left = std.math.clamp(if (x >= radius) x - radius else 0, 0, image.width);
+    const right = std.math.clamp(x + radius, 0, image.width - 1);
+    const top = std.math.clamp(if (y >= radius) y - radius else 0, 0, image.height);
+    const bottom = std.math.clamp(y + radius, 0, image.height - 1);
+
+    std.debug.assert(image.format == .UNCOMPRESSED_GRAYSCALE);
+    // TODO: function to get subimage
+    const pixels = @as([*]u8, @ptrCast(image.data.?)) + top * image.width + left;
+    const stride = image.width;
+    const width = right - left;
+    const height = bottom - top;
+
+    var pixels_cleaned_count: u32 = 0;
+    // TODO: typed capture instead of usize then cast: https://github.com/ziglang/zig/issues/21267
+    //       related: https://github.com/ziglang/zig/issues/3806
+    for (0..height) |py| {
+        for (0..width) |px| {
+            const rpx: u32 = @intCast(px);
+            const rpy: u32 = @intCast(py);
+
+            const pixel = &pixels[rpy * stride + rpx];
+            if (pixel.* == 0) continue;
+
+            pixels_cleaned_count += 1;
+            pixel.* = 0;
+        }
+    }
+
+    // TODO: integer rectangle type
+    return .{
+        .pixels_changed_rect = .{ .height = @floatFromInt(height), .width = @floatFromInt(width), .x = @floatFromInt(left), .y = @floatFromInt(top) },
+        .pixels_cleaned_count = pixels_cleaned_count,
+        .pixels = pixels,
+    };
 }

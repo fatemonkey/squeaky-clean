@@ -1,6 +1,6 @@
 .{
     .name = .squeakyclean,
-    .version = "0.0.1",
+    .version = "0.0.2",
     .dependencies = .{
         .raylib = .{
             .url = "git+https://github.com/raysan5/raylib#a6fa8b9ff44a83aad9962141804cfcaa2a86928d",

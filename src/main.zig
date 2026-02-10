@@ -95,7 +95,7 @@ pub fn main() !void {
     const camera_zoom_speed = 1.15;
 
     // offset the plane ever so slightly below ground level so the grid can be drawn cleanly above it
-    const floor_position = rm.Vector3f.init(1, -0.01, 0);
+    const floor_position = rm.Vector3f.init(0, -0.001, 0);
     const floor_size = 2.0;
     // TODO: rectangle functions
     const floor_left = floor_position.x - (floor_size / 2);

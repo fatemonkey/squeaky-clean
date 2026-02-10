@@ -3,7 +3,21 @@ const rl = @import("raylib");
 pub const math = @import("math.zig");
 
 // TODO: wrapper around this instead of just exporting it
-pub const gl = @import("rlgl");
+pub const rgl = @import("rlgl");
+
+var gl_functions = struct {
+    glPixelStorei: gl.c.PFNGLPIXELSTOREIPROC = null,
+}{};
+
+pub const gl = struct {
+    // Normally we can just use rlgl functions, but we need (as of writing this) at least glPixelstorei for updating sub-rectangles in textures properly,
+    // which rlgl doesn't have any way of calling or accessing. Thus, we need to also directly access raw OpenGL.
+    pub const c = @import("gl");
+
+    pub fn pixelStorei(@"enum": c.GLenum, parameter: c.GLint) void {
+        gl_functions.glPixelStorei.?(@"enum", parameter);
+    }
+};
 
 // TODO: should we make all rayzig structures binary compatibile with raylib so we can easily just cast between them...?
 
@@ -204,7 +218,7 @@ pub const Model = extern struct {
 
     bytes: [@sizeOf(rl.Model)]u8,
 
-    pub fn to_rl(this: @This()) rl.Model {
+    fn to_rl(this: @This()) rl.Model {
         return @bitCast(this);
     }
 };
@@ -217,7 +231,7 @@ pub const Texture_2d = extern struct {
     mipmaps: c_int,
     format: c_int,
 
-    pub fn to_rl(this: @This()) rl.Texture2D {
+    fn to_rl(this: @This()) rl.Texture2D {
         return @bitCast(this);
     }
 };
@@ -326,6 +340,10 @@ pub const Rectangle = extern struct {
     width: f32,
     height: f32,
 
+    pub fn is_zero(this: @This()) bool {
+        return this.width == 0 and this.height == 0;
+    }
+
     fn to_rl(this: @This()) rl.Rectangle {
         return @bitCast(this);
     }
@@ -343,8 +361,13 @@ comptime {
     assert(@sizeOf(Bounding_Box) == @sizeOf(rl.BoundingBox));
 }
 
+fn init_gl_functions() void {
+    gl_functions.glPixelStorei = @ptrCast(rgl.rlGetProcAddress("glPixelStorei"));
+}
+
 pub fn init_window(width: u32, height: u32, title: [:0]const u8) void {
     rl.InitWindow(@intCast(width), @intCast(height), title);
+    init_gl_functions();
 }
 
 pub fn close_window() void {
@@ -353,6 +376,14 @@ pub fn close_window() void {
 
 pub fn window_should_close() bool {
     return rl.WindowShouldClose();
+}
+
+pub fn get_render_width() u32 {
+    return @intCast(rl.GetRenderWidth());
+}
+
+pub fn get_render_height() u32 {
+    return @intCast(rl.GetRenderHeight());
 }
 
 pub fn set_target_fps(fps: u32) void {
@@ -386,6 +417,10 @@ pub fn clear_background(color: Color) void {
 
 pub fn draw_text(text: [:0]const u8, x: i32, y: i32, font_size: u32, color: Color) void {
     rl.DrawText(text, x, y, @intCast(font_size), color.to_rl());
+}
+
+pub fn measure_text(text: [:0]const u8, font_size: u32) u32 {
+    return @intCast(rl.MeasureText(text, @intCast(font_size)));
 }
 
 pub fn draw_rectangle(x: f32, y: f32, width: f32, height: f32, color: Color) void {
@@ -469,6 +504,10 @@ pub fn update_texture_rec(texture: Texture_2d, rectangle: Rectangle, pixels: *an
 pub fn load_shader(vertex_shader_path: ?[:0]const u8, fragment_shader_path: ?[:0]const u8) Shader {
     const shader = rl.LoadShader(vertex_shader_path orelse null, fragment_shader_path orelse null);
     return @bitCast(shader);
+}
+
+pub fn export_image(image: Image, path: [:0]const u8) bool {
+    return rl.ExportImage(image.to_rl().*, path);
 }
 
 pub fn gen_image_color(width: u32, height: u32, color: Color) Image {

@@ -28,7 +28,7 @@ pub fn build(b: *std.Build) !void {
     }
 
     const raylib_translate_c = b.addTranslateC(.{
-        .root_source_file = b.path("src/rayzig/raylib.h"),
+        .root_source_file = b.path("src/rayzig/headers/raylib.h"),
         .target = target,
         .optimize = optimize,
     });
@@ -36,12 +36,18 @@ pub fn build(b: *std.Build) !void {
     const raylib = raylib_translate_c.createModule();
 
     const rlgl_translate_c = b.addTranslateC(.{
-        .root_source_file = b.path("src/rayzig/rlgl.h"),
+        .root_source_file = b.path("src/rayzig/headers/rlgl.h"),
         .target = target,
         .optimize = optimize,
     });
     rlgl_translate_c.addIncludePath(raylib_dependency.path("src"));
     const rlgl = rlgl_translate_c.createModule();
+
+    const gl = b.addTranslateC(.{
+        .root_source_file = b.path("src/rayzig/headers/glcorearb.h"),
+        .target = target,
+        .optimize = optimize,
+    }).createModule();
 
     const rayzig = b.createModule(.{
         .target = target,
@@ -50,6 +56,7 @@ pub fn build(b: *std.Build) !void {
         .imports = &.{
             .{ .name = "raylib", .module = raylib },
             .{ .name = "rlgl", .module = rlgl },
+            .{ .name = "gl", .module = gl },
         },
     });
     rayzig.linkLibrary(raylib_lib);

@@ -1,11 +1,16 @@
 const std = @import("std");
 const rl = @import("rayzig");
+const gl = rl.gl;
 const rm = rl.math;
 const options = @import("options");
 
 const log = std.log.scoped(.game);
 
-pub fn main() void {
+pub fn main() !void {
+    var heap = std.heap.DebugAllocator(.{}).init;
+    defer _ = heap.deinit();
+    const permanent_allocator = heap.allocator();
+
     const version = options.version_string;
 
     var title_buffer: [64]u8 = undefined;
@@ -29,8 +34,33 @@ pub fn main() void {
     var cursor_enabled = false;
     rl.disable_cursor();
 
+    const dirtiness_shader = rl.load_shader(null, "assets/texture_blend_mask.frag.glsl");
+    defer rl.unload_shader(dirtiness_shader);
+
     const floor_texture = rl.load_texture("assets/thirdparty/wood5.png");
     defer rl.unload_texture(floor_texture);
+
+    const dirt_texture = rl.load_texture("assets/thirdparty/Dirt_03.png");
+    defer rl.unload_texture(dirt_texture);
+
+    const mask_image_data = try permanent_allocator.alloc(u8, 256 * 256);
+    defer permanent_allocator.free(mask_image_data);
+    @memset(mask_image_data, 150);
+    var mask_image = blk: {
+        const mask_size = 256;
+        break :blk rl.Image{
+            .width = mask_size,
+            .height = mask_size,
+            .mipmaps = 1,
+            .format = .UNCOMPRESSED_GRAYSCALE,
+            .data = mask_image_data.ptr,
+        };
+    };
+    const mask_texture = rl.load_texture_from_image(mask_image);
+
+    const floor_texture_location = rl.get_shader_location(dirtiness_shader, "texture_a") orelse @panic("unhandled");
+    const dirt_texture_location = rl.get_shader_location(dirtiness_shader, "texture_b") orelse @panic("unhandled");
+    const mask_texture_location = rl.get_shader_location(dirtiness_shader, "texture_mask") orelse @panic("unhandled");
 
     const mouse_model = rl.load_model("assets/mouse7.glb");
     const mouse_bounds = rl.get_model_bounding_box(mouse_model);
@@ -63,6 +93,17 @@ pub fn main() void {
     var camera_zoom: f32 = 1.0;
     const max_camera_zoom = 3;
     const camera_zoom_speed = 1.15;
+
+    // offset the plane ever so slightly below ground level so the grid can be drawn cleanly above it
+    const floor_position = rm.Vector3f.init(1, -0.01, 0);
+    const floor_size = 2.0;
+    // TODO: rectangle functions
+    const floor_left = floor_position.x - (floor_size / 2);
+    const floor_right = floor_position.x + (floor_size / 2);
+    const floor_top = floor_position.z - (floor_size / 2);
+    const floor_bottom = floor_position.z + (floor_size / 2);
+    const floor_top_left_3d = rm.Vector3f.init(floor_left, floor_position.y, floor_top);
+
     while (!rl.window_should_close()) {
         rl.begin_drawing();
         defer rl.end_drawing();
@@ -123,6 +164,22 @@ pub fn main() void {
             mouse_yaw = normalize_angle(mouse_yaw + delta);
         }
 
+        const mouse_floor_position_2d = rm.Vector3f.init(mouse_position.x - floor_left, 0, mouse_position.z - floor_top).scale(1.0 / floor_size);
+        // TODO: rectangle functions
+        const mouse_is_on_floor =
+            mouse_floor_position_2d.x >= 0 and mouse_floor_position_2d.x <= 1 and mouse_floor_position_2d.z >= 0 and mouse_floor_position_2d.z <= 1;
+
+        if (mouse_is_on_floor) {
+            // Clean the mouse's spot on the image dirt mask
+            const x: u32 = @intFromFloat(mouse_floor_position_2d.x * @as(f32, @floatFromInt(mask_image.width)));
+            const y = mask_image.height - @as(u32, @intFromFloat(mouse_floor_position_2d.z * @as(f32, @floatFromInt(mask_image.height))));
+            // TODO: account for alpha, don't just wipe the dirt completely off, allow partial cleaning
+            rl.image_draw_circle(&mask_image, x, y, 8, .BLANK);
+            // TODO: i'd prefer to use update_texture_rec to only update the part that's changing, but we can't set the stride
+            // to tell it how to read from a subregion of the source image...
+            rl.update_texture(mask_texture, mask_image.data.?);
+        }
+
         const mouse_wheel = rl.get_mouse_wheel_move();
         // TODO: make sure its possible to get back perfectly to neutral/default zoom
         if (mouse_wheel > 0) {
@@ -149,21 +206,33 @@ pub fn main() void {
             rl.begin_mode_3d(camera);
             defer rl.end_mode_3d();
 
-            const plane_size = 2;
             {
-                // offset the plane ever so slightly below ground level so the grid is cleanly above it
-                const y = -0.01;
-                const half_size = plane_size / 2;
-                const tl = rm.Vector3f.init(-half_size, y, -half_size);
-                const tr = rm.Vector3f.init(half_size, y, -half_size);
-                const br = rm.Vector3f.init(half_size, y, half_size);
-                const bl = rm.Vector3f.init(-half_size, y, half_size);
-                draw_textured_3d_quad(floor_texture, tl, bl, br, tr);
+                rl.begin_shader_mode(dirtiness_shader);
+                defer rl.end_shader_mode();
+
+                const tr = rm.Vector3f.init(floor_right, floor_position.y, floor_top);
+                const br = rm.Vector3f.init(floor_right, floor_position.y, floor_bottom);
+                const bl = rm.Vector3f.init(floor_left, floor_position.y, floor_bottom);
+
+                // The texture is multiplied by this tint
+                const brightness = 0.5;
+                gl.rlColor4f(brightness, brightness, brightness, 1.0);
+
+                rl.set_shader_value_texture(dirtiness_shader, floor_texture_location, floor_texture);
+                rl.set_shader_value_texture(dirtiness_shader, dirt_texture_location, dirt_texture);
+                rl.set_shader_value_texture(dirtiness_shader, mask_texture_location, mask_texture);
+
+                draw_3d_quad(floor_top_left_3d, bl, br, tr);
             }
 
             if (show_debug_overlay) {
+                // where the mouse is relative to the floor
+                if (mouse_is_on_floor) {
+                    rl.draw_sphere(floor_top_left_3d.add_elements(mouse_floor_position_2d.scale(floor_size)), 0.01, .RED);
+                }
+
                 const grid_subdivisions = 2;
-                rl.draw_grid(plane_size * grid_subdivisions, 1.0 / @as(comptime_float, grid_subdivisions));
+                rl.draw_grid(floor_size * grid_subdivisions, 1.0 / @as(comptime_float, grid_subdivisions));
 
                 const debug_camera_forward_end = mouse_position.add_elements(camera_forward_2d);
                 const debug_camera_right_end = mouse_position.add_elements(camera_right_2d);
@@ -180,6 +249,7 @@ pub fn main() void {
             rl.draw_text(text_format("Camera Dir: {f}", .{camera_forward_2d}), debug_text_pos.x, debug_text_pos.y + 2 * debug_font_size, debug_font_size, .WHITE);
             rl.draw_text(text_format("Camera Yaw: {d:0.3}", .{camera_yaw}), debug_text_pos.x, debug_text_pos.y + 3 * debug_font_size, debug_font_size, .WHITE);
             rl.draw_text(text_format("Mouse Yaw: {d:0.3}", .{mouse_yaw}), debug_text_pos.x, debug_text_pos.y + 4 * debug_font_size, debug_font_size, .WHITE);
+            rl.draw_text(text_format("Mouse Floor Pos: {f}", .{mouse_floor_position_2d}), debug_text_pos.x, debug_text_pos.y + 5 * debug_font_size, debug_font_size, .WHITE);
         }
     }
 }
@@ -233,17 +303,9 @@ fn normalize_angle(angle: f32) f32 {
 // bl = bottom left
 // br = bottom right
 // tr = top right
-fn draw_textured_3d_quad(texture: rl.Texture_2d, tl: rm.Vector3f, bl: rm.Vector3f, br: rm.Vector3f, tr: rm.Vector3f) void {
-    const gl = rl.gl;
-
+fn draw_3d_quad(tl: rm.Vector3f, bl: rm.Vector3f, br: rm.Vector3f, tr: rm.Vector3f) void {
     gl.rlBegin(gl.RL_QUADS);
     defer gl.rlEnd();
-
-    gl.rlSetTexture(texture.id);
-
-    // The texture is multiplied by this tint
-    const brightness = 0.5;
-    gl.rlColor4f(brightness, brightness, brightness, 1.0);
 
     // "BL" triangle
     gl.rlTexCoord2f(0, 1);

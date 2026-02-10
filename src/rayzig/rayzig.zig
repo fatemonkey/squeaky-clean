@@ -265,10 +265,81 @@ pub const Bounding_Box = extern struct {
     max: math.Vector3f,
 };
 
+// TODO: should this store C types or Zig types?
+pub const Shader = extern struct {
+    id: c_uint,
+    locs: [*c]c_int,
+
+    fn to_rl(this: @This()) rl.Shader {
+        return @bitCast(this);
+    }
+};
+
+pub const Pixel_Format = enum(rl.PixelFormat) {
+    UNCOMPRESSED_GRAYSCALE = 1,
+    UNCOMPRESSED_GRAY_ALPHA = 2,
+    UNCOMPRESSED_R5G6B5 = 3,
+    UNCOMPRESSED_R8G8B8 = 4,
+    UNCOMPRESSED_R5G5B5A1 = 5,
+    UNCOMPRESSED_R4G4B4A4 = 6,
+    UNCOMPRESSED_R8G8B8A8 = 7,
+    UNCOMPRESSED_R32 = 8,
+    UNCOMPRESSED_R32G32B32 = 9,
+    UNCOMPRESSED_R32G32B32A32 = 10,
+    UNCOMPRESSED_R16 = 11,
+    UNCOMPRESSED_R16G16B16 = 12,
+    UNCOMPRESSED_R16G16B16A16 = 13,
+    COMPRESSED_DXT1_RGB = 14,
+    COMPRESSED_DXT1_RGBA = 15,
+    COMPRESSED_DXT3_RGBA = 16,
+    COMPRESSED_DXT5_RGBA = 17,
+    COMPRESSED_ETC1_RGB = 18,
+    COMPRESSED_ETC2_RGB = 19,
+    COMPRESSED_ETC2_EAC_RGBA = 20,
+    COMPRESSED_PVRT_RGB = 21,
+    COMPRESSED_PVRT_RGBA = 22,
+    COMPRESSED_ASTC_4x4_RGBA = 23,
+    COMPRESSED_ASTC_8x8_RGBA = 24,
+};
+
+// TODO: should this store C types or Zig types?
+pub const Image = extern struct {
+    data: ?*anyopaque,
+    width: u32,
+    height: u32,
+    mipmaps: u32,
+    format: Pixel_Format,
+
+    fn to_rl(this: *const @This()) *const rl.Image {
+        return @ptrCast(this);
+    }
+
+    fn to_rl_mut(this: *@This()) *rl.Image {
+        return @ptrCast(this);
+    }
+};
+
+// TODO: should this be moved to the math module?
+pub const Rectangle = extern struct {
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+
+    fn to_rl(this: @This()) rl.Rectangle {
+        return @bitCast(this);
+    }
+};
+
 comptime {
     const assert = std.debug.assert;
 
     assert(@sizeOf(Camera_3d) == @sizeOf(rl.Camera3D));
+    assert(@sizeOf(Model) == @sizeOf(rl.Model));
+    assert(@sizeOf(Texture_2d) == @sizeOf(rl.Texture2D));
+    assert(@sizeOf(Shader) == @sizeOf(rl.Shader));
+    assert(@sizeOf(Image) == @sizeOf(rl.Image));
+    assert(@sizeOf(Rectangle) == @sizeOf(rl.Rectangle));
     assert(@sizeOf(Bounding_Box) == @sizeOf(rl.BoundingBox));
 }
 
@@ -325,6 +396,10 @@ pub fn draw_rectangle_v(position: math.Vector2f, size: math.Vector2f, color: Col
     rl.DrawRectangleV(position.to_rl(), size.to_rl(), color.to_rl());
 }
 
+pub fn draw_sphere(center: math.Vector3f, radius: f32, color: Color) void {
+    rl.DrawSphere(center.to_rl(), radius, color.to_rl());
+}
+
 pub fn draw_plane(center: math.Vector3f, size: math.Vector2f, color: Color) void {
     rl.DrawPlane(center.to_rl(), size.to_rl(), color.to_rl());
 }
@@ -374,8 +449,59 @@ pub fn load_texture(path: [:0]const u8) Texture_2d {
     return @bitCast(texture);
 }
 
+pub fn load_texture_from_image(image: Image) Texture_2d {
+    const texture = rl.LoadTextureFromImage(image.to_rl().*);
+    return @bitCast(texture);
+}
+
 pub fn unload_texture(texture: Texture_2d) void {
     rl.UnloadTexture(texture.to_rl());
+}
+
+pub fn update_texture(texture: Texture_2d, pixels: *anyopaque) void {
+    rl.UpdateTexture(texture.to_rl(), pixels);
+}
+
+pub fn update_texture_rec(texture: Texture_2d, rectangle: Rectangle, pixels: *anyopaque) void {
+    rl.UpdateTextureRec(texture.to_rl(), rectangle.to_rl(), pixels);
+}
+
+pub fn load_shader(vertex_shader_path: ?[:0]const u8, fragment_shader_path: ?[:0]const u8) Shader {
+    const shader = rl.LoadShader(vertex_shader_path orelse null, fragment_shader_path orelse null);
+    return @bitCast(shader);
+}
+
+pub fn gen_image_color(width: u32, height: u32, color: Color) Image {
+    const image = rl.GenImageColor(@intCast(width), @intCast(height), color.to_rl());
+    return @bitCast(image);
+}
+
+pub fn image_draw_circle(image: *Image, center_x: u32, center_y: u32, radius: u32, color: Color) void {
+    rl.ImageDrawCircle(image.to_rl_mut(), @intCast(center_x), @intCast(center_y), @intCast(radius), color.to_rl());
+}
+
+pub fn unload_shader(shader: Shader) void {
+    rl.UnloadShader(shader.to_rl());
+}
+
+pub fn begin_shader_mode(shader: Shader) void {
+    rl.BeginShaderMode(shader.to_rl());
+}
+
+pub fn end_shader_mode() void {
+    rl.EndShaderMode();
+}
+
+pub fn get_shader_location(shader: Shader, uniform_name: [:0]const u8) ?u32 {
+    const location = rl.GetShaderLocation(shader.to_rl(), uniform_name);
+    if (location == -1) {
+        return null;
+    }
+    return @bitCast(location);
+}
+
+pub fn set_shader_value_texture(shader: Shader, location: u32, texture: Texture_2d) void {
+    rl.SetShaderValueTexture(shader.to_rl(), @bitCast(location), texture.to_rl());
 }
 
 pub fn load_model(path: [:0]const u8) Model {

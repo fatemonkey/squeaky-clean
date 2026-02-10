@@ -4,3 +4,10 @@ Author: Screaming Brain Studios
 Date: Monday, May 17, 2021 - 19:52
 URL: https://opengameart.org/content/tiny-texture-pack-1
 License: CC0
+
+File: Dirt_03.png
+Source Name: Tileable Dirt Textures
+Author: Cethiel
+Date: Friday, April 19, 2019 - 15:02
+URL: https://opengameart.org/content/tileable-dirt-textures
+License: CC0
